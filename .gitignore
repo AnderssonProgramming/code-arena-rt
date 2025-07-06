@@ -38,3 +38,18 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+# Environment Variables
+.env
+*.env
+
+# Logs
+logs/
+*.log
+
+# Spring Boot
+application-local.yml
+application-local.properties
+
+# MongoDB
+*.mongodb
