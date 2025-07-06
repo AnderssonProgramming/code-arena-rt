@@ -14,4 +14,4 @@
 ---
 **Escuela Colombiana de Ingeniería**  
 **Arquitecturas de Software – ARSW**  
-**2024-I**
+**2025-i**

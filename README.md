@@ -104,7 +104,7 @@
 
 #### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/tu-usuario/code-arena-rt.git
+git clone https://github.com/AnderssonProgramming/code-arena-rt.git
 cd code-arena-rt
 ```
 
@@ -211,7 +211,7 @@ Este es un proyecto académico individual para el curso **Arquitecturas de Softw
 
 **Institución**: Escuela Colombiana de Ingeniería  
 **Programa**: Arquitecturas de Software (ARSW)  
-**Período**: 2024-I  
+**Período**: 2025-i  
 **Modalidad**: Proyecto Individual  
 
 ### Objetivos de Aprendizaje
@@ -226,7 +226,7 @@ Este es un proyecto académico individual para el curso **Arquitecturas de Softw
 
 ## 📄 Licencia
 
-Este proyecto es desarrollado con fines académicos para la Escuela Colombiana de Ingeniería.
+Este proyecto es desarrollado con fines académicos para la Escuela Colombiana de Ingeniería, soportado por Licencia MIT.
 
 ---
 
@@ -239,4 +239,4 @@ Este proyecto es desarrollado con fines académicos para la Escuela Colombiana d
 
 ---
 
-*Desarrollado con ❤️ para ARSW - ECI 2024-I*
+*Desarrollado con ❤️ para ARSW - ECI 2025-i*

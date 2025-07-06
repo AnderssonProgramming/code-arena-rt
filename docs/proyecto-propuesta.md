@@ -1,9 +1,9 @@
 # 🎯 Code Arena: Multiplayer Puzzle Battle
 
-**Autor:** [Tu Nombre]  
+**Autor:** Andersson David Sánchez Méndez  
 **Institución:** Escuela Colombiana de Ingeniería  
 **Curso:** Arquitecturas de Software – ARSW  
-**Período:** 2024-I
+**Período:** 2025-i
 
 ---
 

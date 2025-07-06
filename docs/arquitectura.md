@@ -638,4 +638,4 @@ services:
 
 ---
 
-*Arquitectura diseñada para Code Arena - Escuela Colombiana de Ingeniería - ARSW 2024-I*
+*Arquitectura diseñada para Code Arena - Escuela Colombiana de Ingeniería - ARSW 2025-i*
