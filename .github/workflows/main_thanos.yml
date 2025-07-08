@@ -50,4 +50,5 @@ jobs:
           app-name: 'thanos' # Nombre exacto de tu App Service
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_89822192B3154EF4B73C354C1E8F8F9D }}
-          package: '*.jar'
+          package: 'code-arena-0.0.1-SNAPSHOT.jar'
+
