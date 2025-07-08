@@ -44,7 +44,15 @@ class UserService(
         )
 
         val savedUser = userRepository.save(user)
-        val token = jwtTokenProvider.generateToken(savedUser.username)
+        
+        // Create UserDetails para generar token
+        val userDetails = org.springframework.security.core.userdetails.User.builder()
+            .username(savedUser.username)
+            .password(savedUser.passwordHash)
+            .authorities("ROLE_USER")
+            .build()
+        
+        val token = jwtTokenProvider.generateToken(userDetails)
 
         return AuthResponse(
             token = token,
@@ -57,8 +65,8 @@ class UserService(
      * Authenticate user login
      */
     fun loginUser(loginRequest: LoginRequest): AuthResponse {
-        val user = userRepository.findByEmail(loginRequest.email)
-            ?: userRepository.findByUsername(loginRequest.email)
+        val user = userRepository.findByEmail(loginRequest.email).orElse(null)
+            ?: userRepository.findByUsername(loginRequest.email).orElse(null)
             ?: throw IllegalArgumentException("Invalid credentials")
 
         if (!passwordEncoder.matches(loginRequest.password, user.passwordHash)) {
@@ -73,7 +81,14 @@ class UserService(
         val updatedUser = user.copy(lastLoginAt = LocalDateTime.now())
         userRepository.save(updatedUser)
 
-        val token = jwtTokenProvider.generateToken(user.username)
+        // Create UserDetails para generar token
+        val userDetails = org.springframework.security.core.userdetails.User.builder()
+            .username(user.username)
+            .password(user.passwordHash)
+            .authorities("ROLE_USER")
+            .build()
+
+        val token = jwtTokenProvider.generateToken(userDetails)
 
         return AuthResponse(
             token = token,
@@ -86,7 +101,7 @@ class UserService(
      * Get user by username
      */
     fun getUserByUsername(username: String): UserDto {
-        val user = userRepository.findByUsername(username)
+        val user = userRepository.findByUsername(username).orElse(null)
             ?: throw IllegalArgumentException("User not found")
         
         return user.toUserDto()
@@ -149,10 +164,15 @@ class UserService(
     }
 
     /**
-     * Get user rankings
+     * Get user rankings based on win rate
      */
     fun getUserRankings(limit: Int = 10): List<UserDto> {
-        return userRepository.findTopUsersByWinRate(limit)
+        return userRepository.findByIsActiveTrue()
+            .filter { it.stats.gamesPlayed > 0 } // Only include users who have played games
+            .sortedWith(compareByDescending<User> { it.stats.winRate }
+                .thenByDescending { it.stats.gamesWon }
+                .thenByDescending { it.stats.averageScore })
+            .take(limit)
             .map { it.toUserDto() }
     }
 
@@ -160,7 +180,8 @@ class UserService(
      * Search users by username
      */
     fun searchUsers(query: String, limit: Int = 10): List<UserDto> {
-        return userRepository.findByUsernameContainingIgnoreCase(query, limit)
+        return userRepository.findByUsernameContainingIgnoreCase(query)
+            .take(limit)
             .map { it.toUserDto() }
     }
 

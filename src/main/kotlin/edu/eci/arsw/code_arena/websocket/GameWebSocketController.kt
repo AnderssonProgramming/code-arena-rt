@@ -184,7 +184,7 @@ class GameWebSocketController(
             val answerResult = AnswerResultMessage(
                 isCorrect = playerAnswer.isCorrect,
                 score = playerAnswer.score,
-                responseTime = playerAnswer.responseTime,
+                responseTime = playerAnswer.responseTime.toLong(),
                 message = if (playerAnswer.isCorrect) "Correct!" else "Incorrect!"
             )
             

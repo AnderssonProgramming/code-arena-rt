@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
 import java.security.Key
 import java.util.*
+import javax.crypto.SecretKey
 
 @Component
 class JwtTokenUtil {
@@ -31,11 +32,11 @@ class JwtTokenUtil {
     }
 
     private fun getAllClaimsFromToken(token: String): Claims {
-        return Jwts.parserBuilder()
-            .setSigningKey(getSigningKey())
+        return Jwts.parser()
+            .verifyWith(getSigningKey() as SecretKey)
             .build()
-            .parseClaimsJws(token)
-            .body
+            .parseSignedClaims(token)
+            .payload
     }
 
     fun isTokenExpired(token: String): Boolean {

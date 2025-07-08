@@ -83,7 +83,7 @@ class GameController(
         authentication: Authentication,
         @PathVariable gameId: String,
         @RequestBody answerRequest: SubmitAnswerRequest
-    ): ResponseEntity<ApiResponse<AnswerResult>> {
+    ): ResponseEntity<ApiResponse<edu.eci.arsw.code_arena.dto.AnswerResult>> {
         return try {
             val username = authentication.name
             val user = userService.getUserByUsername(username)

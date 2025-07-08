@@ -22,8 +22,14 @@ class ChallengeService(
      * Get all challenges with pagination
      */
     fun getAllChallenges(page: Int = 0, size: Int = 20): List<Challenge> {
-        val pageable = PageRequest.of(page, size)
-        return challengeRepository.findByIsActiveTrueOrderByCreatedAtDesc(pageable).content
+        val allChallenges = challengeRepository.findByIsActiveTrueOrderByCreatedAtDesc()
+        val startIndex = page * size
+        val endIndex = minOf(startIndex + size, allChallenges.size)
+        return if (startIndex < allChallenges.size) {
+            allChallenges.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
     }
 
     /**
@@ -92,9 +98,8 @@ class ChallengeService(
      * Search challenges by title or description
      */
     fun searchChallenges(query: String, limit: Int = 20): List<Challenge> {
-        return challengeRepository.findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCaseAndIsActiveTrue(
-            query, query, PageRequest.of(0, limit)
-        ).content
+        val results = challengeRepository.findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCaseAndIsActiveTrue(query, query)
+        return results.take(limit)
     }
 
     /**
@@ -116,7 +121,7 @@ class ChallengeService(
             "title" to challenge.title,
             "difficulty" to challenge.difficulty,
             "type" to challenge.type,
-            "timesPlayed" to challenge.stats.timesPlayed,
+            "timesPlayed" to challenge.stats.timesUsed,
             "successRate" to challenge.stats.successRate,
             "averageTime" to challenge.stats.averageTime,
             "createdAt" to challenge.createdAt
@@ -148,7 +153,7 @@ class ChallengeService(
                 explanation = "15 + 27 = 42",
                 timeLimit = 30,
                 points = 100,
-                tags = setOf("matemáticas", "suma", "básico")
+                tags = listOf("matemáticas", "suma", "básico")
             ),
             
             Challenge(
@@ -162,7 +167,7 @@ class ChallengeService(
                 explanation = "La secuencia son números pares consecutivos",
                 timeLimit = 45,
                 points = 120,
-                tags = setOf("lógica", "secuencia", "números")
+                tags = listOf("lógica", "secuencia", "números")
             ),
 
             // MEDIUM Challenges
@@ -177,7 +182,7 @@ class ChallengeService(
                 explanation = "5! = 5 × 4 × 3 × 2 × 1 = 120",
                 timeLimit = 60,
                 points = 200,
-                tags = setOf("matemáticas", "factorial", "multiplicación")
+                tags = listOf("matemáticas", "factorial", "multiplicación")
             ),
 
             Challenge(
@@ -191,7 +196,7 @@ class ChallengeService(
                 explanation = "QuickSort tiene complejidad promedio O(n log n)",
                 timeLimit = 90,
                 points = 250,
-                tags = setOf("algoritmos", "complejidad", "ordenamiento")
+                tags = listOf("algoritmos", "complejidad", "ordenamiento")
             ),
 
             // HARD Challenges
@@ -205,7 +210,7 @@ class ChallengeService(
                 explanation = "Fórmula: 2^n - 1, donde n=4. Entonces 2^4 - 1 = 15",
                 timeLimit = 120,
                 points = 400,
-                tags = setOf("recursión", "torres-hanoi", "algoritmos"),
+                tags = listOf("recursión", "torres-hanoi", "algoritmos"),
                 hints = listOf("Usa la fórmula 2^n - 1", "n es el número de discos")
             ),
 
@@ -219,7 +224,7 @@ class ChallengeService(
                 explanation = "F(10) = 55. Secuencia: 0,1,1,2,3,5,8,13,21,34,55",
                 timeLimit = 150,
                 points = 450,
-                tags = setOf("fibonacci", "programación-dinámica", "secuencias")
+                tags = listOf("fibonacci", "programación-dinámica", "secuencias")
             )
         )
     }

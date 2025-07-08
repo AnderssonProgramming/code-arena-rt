@@ -26,7 +26,7 @@ class GameService(
      * Create a new game from a room
      */
     fun createGame(room: Room): Game {
-        val challenges = selectChallengesForGame(room.gameSettings, room.difficulty)
+        val challenges = selectChallengesForGame(room.gameSettings ?: GameSettings(), room.difficulty)
         
         val gamePlayers = room.currentPlayers.map { roomPlayer ->
             GamePlayer(
@@ -34,18 +34,25 @@ class GameService(
                 username = roomPlayer.username,
                 joinedAt = roomPlayer.joinedAt
             )
-        }
+        }.toMutableList()
 
         val gameChallenges = challenges.mapIndexed { index, challenge ->
             GameChallenge(
                 challengeId = challenge.id!!,
-                roundNumber = index + 1,
-                timeLimit = room.gameSettings.timePerRound
+                startedAt = LocalDateTime.now(),
+                duration = room.gameSettings?.timePerRound ?: 60
             )
-        }
+        }.toMutableList()
 
         val game = Game(
             roomId = room.id!!,
+            hostId = room.hostId,
+            config = GameConfig(
+                maxPlayers = room.maxPlayers,
+                difficulty = room.difficulty,
+                timePerChallenge = room.gameSettings?.timePerRound ?: 60,
+                totalChallenges = room.gameSettings?.roundCount ?: 5
+            ),
             players = gamePlayers,
             challenges = gameChallenges,
             settings = room.gameSettings,
@@ -66,7 +73,7 @@ class GameService(
             throw IllegalArgumentException("Game cannot be started")
         }
 
-        val updatedGame = game.copy(
+        var updatedGame = game.copy(
             status = GameStatus.IN_PROGRESS,
             startedAt = LocalDateTime.now(),
             currentRound = 1
@@ -74,7 +81,8 @@ class GameService(
 
         // Start first challenge
         if (updatedGame.challenges.isNotEmpty()) {
-            updatedGame.challenges[0].startedAt = LocalDateTime.now()
+            val firstChallenge = updatedGame.challenges[0].copy(startedAt = LocalDateTime.now())
+            updatedGame.challenges[0] = firstChallenge
         }
 
         return gameRepository.save(updatedGame)
@@ -98,24 +106,45 @@ class GameService(
             ?: throw IllegalArgumentException("Challenge not found")
 
         // Check if player already answered
-        if (currentChallenge.answers.any { it.userId == userId }) {
+        if (currentChallenge.responses.any { it.playerId == userId }) {
             throw IllegalArgumentException("Player already answered this round")
         }
 
         val isCorrect = checkAnswer(challenge, answer)
-        val responseTime = calculateResponseTime(currentChallenge.startedAt!!)
-        val score = calculateScore(challenge, isCorrect, responseTime, game.settings.scoringMode)
+        val responseTime = calculateResponseTime(currentChallenge.startedAt)
+        val score = calculateScore(challenge, isCorrect, responseTime, game.settings?.scoringMode ?: ScoringMode.STANDARD)
 
         val playerAnswer = PlayerAnswer(
             userId = userId,
+            challengeId = challenge.id!!,
             answer = answer,
+            submittedAt = LocalDateTime.now(),
             isCorrect = isCorrect,
-            responseTime = responseTime,
-            score = score
+            timeToAnswer = responseTime.toLong(),
+            pointsEarned = score
         )
 
-        // Add answer to challenge
-        currentChallenge.answers.add(playerAnswer)
+        // Add response to challenge
+        val challengeResponse = edu.eci.arsw.code_arena.model.ChallengeResponse(
+            playerId = userId,
+            answer = answer,
+            submittedAt = LocalDateTime.now(),
+            isCorrect = isCorrect,
+            timeToAnswer = responseTime,
+            pointsEarned = score
+        )
+        
+        // Find the mutable challenge and add the response
+        val challengeIndex = game.challenges.indexOfFirst { it == currentChallenge }
+        if (challengeIndex >= 0) {
+            val mutableChallenges = game.challenges.toMutableList()
+            val updatedResponses = currentChallenge.responses.toMutableList()
+            updatedResponses.add(challengeResponse)
+            val updatedChallenge = currentChallenge.copy(responses = updatedResponses)
+            mutableChallenges[challengeIndex] = updatedChallenge
+            val updatedGame = game.copy(challenges = mutableChallenges)
+            gameRepository.save(updatedGame)
+        }
 
         // Update player stats
         updatePlayerStats(game, userId, playerAnswer)
@@ -169,11 +198,11 @@ class GameService(
     private fun selectChallengesForGame(settings: GameSettings, difficulty: ChallengeDifficulty): List<Challenge> {
         val availableChallenges = challengeRepository.findByDifficultyAndIsActiveTrue(difficulty)
         
-        if (availableChallenges.size < settings.roundsCount) {
+        if (availableChallenges.size < settings.roundCount) {
             throw IllegalArgumentException("Not enough challenges available for this difficulty")
         }
 
-        return availableChallenges.shuffled().take(settings.roundsCount)
+        return availableChallenges.shuffled().take(settings.roundCount)
     }
 
     private fun checkAnswer(challenge: Challenge, answer: String): Boolean {
@@ -199,8 +228,9 @@ class GameService(
                 val timeBonus = maxOf(0, (challenge.timeLimit * 1000 - responseTime) / 1000).toInt()
                 baseScore + timeBonus
             }
-            ScoringMode.ACCURACY_ONLY -> baseScore
-            ScoringMode.STREAK_BONUS -> baseScore // Streak handling in updatePlayerStats
+            ScoringMode.STANDARD -> baseScore
+            ScoringMode.STREAK_BONUS -> baseScore // TODO: implement streak logic
+            ScoringMode.ELIMINATION -> baseScore // TODO: implement elimination logic
         }
     }
 
@@ -209,60 +239,58 @@ class GameService(
         if (playerIndex >= 0) {
             val player = game.players[playerIndex]
             val updatedPlayer = player.copy(
-                score = player.score + answer.score,
+                score = player.score + answer.pointsEarned,
                 totalAnswers = player.totalAnswers + 1,
                 correctAnswers = if (answer.isCorrect) player.correctAnswers + 1 else player.correctAnswers,
                 currentStreak = if (answer.isCorrect) player.currentStreak + 1 else 0,
                 bestStreak = if (answer.isCorrect) maxOf(player.bestStreak, player.currentStreak + 1) else player.bestStreak,
                 lastAnswerAt = LocalDateTime.now(),
                 hasAnswered = true,
-                averageResponseTime = calculateAverageResponseTime(player, answer.responseTime)
+                responseTime = calculateAverageResponseTime(player, answer.timeToAnswer.toDouble())
             )
             
-            // Replace player in list (need to modify the actual game object)
-            (game.players as MutableList)[playerIndex] = updatedPlayer
+            // Create a new list with the updated player
+            val mutablePlayers = game.players.toMutableList()
+            mutablePlayers[playerIndex] = updatedPlayer
+            val updatedGame = game.copy(players = mutablePlayers)
+            gameRepository.save(updatedGame)
         }
     }
 
-    private fun calculateAverageResponseTime(player: GamePlayer, newResponseTime: Long): Double {
+    private fun calculateAverageResponseTime(player: GamePlayer, newResponseTime: Double): Double {
         return if (player.totalAnswers == 0) {
-            newResponseTime.toDouble()
+            newResponseTime
         } else {
-            ((player.averageResponseTime * player.totalAnswers) + newResponseTime) / (player.totalAnswers + 1)
+            ((player.responseTime * player.totalAnswers) + newResponseTime) / (player.totalAnswers + 1)
         }
     }
 
     private fun isRoundComplete(game: Game, challenge: GameChallenge): Boolean {
-        return challenge.answers.size >= game.players.size || 
-               challenge.startedAt?.let { 
-                   java.time.Duration.between(it, LocalDateTime.now()).seconds >= challenge.timeLimit 
-               } ?: false
+        return challenge.responses.size >= game.players.size || 
+               java.time.Duration.between(challenge.startedAt, LocalDateTime.now()).seconds >= challenge.duration
     }
 
     private fun completeRound(game: Game, challenge: GameChallenge) {
-        challenge.isCompleted = true
+        val updatedChallenge = challenge.copy(isCompleted = true)
+        val challengeIndex = game.challenges.indexOf(challenge)
+        if (challengeIndex >= 0) {
+            val mutableChallenges = game.challenges.toMutableList()
+            mutableChallenges[challengeIndex] = updatedChallenge
+            val updatedGame = game.copy(challenges = mutableChallenges)
+            gameRepository.save(updatedGame)
+        }
         
         // Reset hasAnswered for all players
-        (game.players as MutableList).replaceAll { it.copy(hasAnswered = false) }
+        val mutablePlayers = game.players.toMutableList()
+        game.players.forEachIndexed { index, player ->
+            mutablePlayers[index] = player.copy(hasAnswered = false)
+        }
+        val gameWithResetPlayers = game.copy(players = mutablePlayers)
+        gameRepository.save(gameWithResetPlayers)
 
         // Check if game is complete
         if (game.currentRound >= game.challenges.size) {
-            // Game is finished
-            val results = calculateFinalResults(game)
-            (game as Game).copy(
-                status = GameStatus.FINISHED,
-                finishedAt = LocalDateTime.now(),
-                results = results
-            )
-        } else {
-            // Move to next round
-            val nextRound = game.currentRound + 1
-            (game as Game).copy(currentRound = nextRound)
-            
-            // Start next challenge
-            if (nextRound <= game.challenges.size) {
-                game.challenges[nextRound - 1].startedAt = LocalDateTime.now()
-            }
+            // Game is finished - this should be handled by calling endGame()
         }
     }
 
@@ -270,32 +298,31 @@ class GameService(
         val sortedPlayers = game.players.sortedByDescending { it.score }
         val winner = sortedPlayers.firstOrNull()
         
-        val totalDuration = game.startedAt?.let { start ->
-            java.time.Duration.between(start, LocalDateTime.now()).toMillis()
-        } ?: 0L
-
-        val averageResponseTime = game.players
-            .filter { it.totalAnswers > 0 }
-            .map { it.averageResponseTime }
-            .average()
-
-        val challengeStats = game.challenges.associate { gameChallenge ->
-            gameChallenge.challengeId to ChallengeGameStats(
-                challengeId = gameChallenge.challengeId,
-                correctAnswers = gameChallenge.answers.count { it.isCorrect },
-                totalAnswers = gameChallenge.answers.size,
-                averageResponseTime = gameChallenge.answers.map { it.responseTime }.average(),
-                fastestAnswer = gameChallenge.answers.minOfOrNull { it.responseTime } ?: 0L,
-                slowestAnswer = gameChallenge.answers.maxOfOrNull { it.responseTime } ?: 0L
+        val playerResults = sortedPlayers.mapIndexed { index, player ->
+            PlayerResult(
+                userId = player.userId,
+                username = player.username,
+                score = player.score,
+                correctAnswers = player.correctAnswers,
+                totalAnswers = player.totalAnswers,
+                averageResponseTime = player.responseTime,
+                rank = index + 1
             )
         }
 
+        val gameStats = GameStatsResults(
+            averageScore = if (playerResults.isNotEmpty()) playerResults.map { it.score }.average() else 0.0,
+            fastestAnswer = playerResults.mapNotNull { 
+                if (it.averageResponseTime > 0) it.averageResponseTime else null 
+            }.minOrNull() ?: 0.0,
+            hardestQuestion = null // TODO: determine hardest question
+        )
+
         return GameResults(
-            winner = winner,
-            rankings = sortedPlayers,
-            totalDuration = totalDuration,
-            averageResponseTime = averageResponseTime,
-            challengeStatistics = challengeStats
+            playerResults = playerResults,
+            winner = winner?.userId,
+            totalRounds = game.challenges.size,
+            gameStats = gameStats
         )
     }
 }

@@ -35,12 +35,16 @@ class RoomService(
         val room = Room(
             roomCode = roomCode,
             name = request.name,
-            hostUserId = userId,
-            maxPlayers = request.maxPlayers,
-            difficulty = request.difficulty,
-            isPrivate = request.isPrivate,
+            hostId = userId,
+            config = RoomConfig(
+                maxPlayers = request.maxPlayers,
+                difficulty = request.difficulty,
+                isPublic = !request.isPrivate,
+                totalChallenges = request.roundsCount,
+                timePerChallenge = request.timePerRound
+            ),
             gameSettings = GameSettings(
-                roundsCount = request.roundsCount,
+                roundCount = request.roundsCount,
                 timePerRound = request.timePerRound
             )
         )
@@ -71,7 +75,7 @@ class RoomService(
             throw IllegalArgumentException("Room is not accepting new players")
         }
 
-        if (room.isFull()) {
+        if (room.isFull) {
             throw IllegalArgumentException("Room is full")
         }
 
@@ -86,8 +90,8 @@ class RoomService(
             )
         )
 
-        room.updatedAt = LocalDateTime.now()
-        return roomRepository.save(room)
+        val updatedRoom = room.copy(updatedAt = LocalDateTime.now())
+        return roomRepository.save(updatedRoom)
     }
 
     /**
@@ -97,21 +101,32 @@ class RoomService(
         val room = roomRepository.findById(roomId).orElse(null)
             ?: throw IllegalArgumentException("Room not found")
 
-        room.currentPlayers.removeIf { it.userId == userId }
+        val updatedPlayers = room.currentPlayers.toMutableList()
+        updatedPlayers.removeIf { it.userId == userId }
 
         // If host leaves, assign new host or close room
-        if (room.hostUserId == userId) {
-            if (room.currentPlayers.isNotEmpty()) {
-                room.hostUserId = room.currentPlayers.first().userId
+        val newRoom = if (room.hostUserId == userId || room.hostId == userId) {
+            if (updatedPlayers.isNotEmpty()) {
+                room.copy(
+                    hostId = updatedPlayers.first().userId,
+                    players = updatedPlayers,
+                    currentPlayers = updatedPlayers,
+                    updatedAt = LocalDateTime.now()
+                )
             } else {
                 // Delete empty room
                 roomRepository.delete(room)
                 return null
             }
+        } else {
+            room.copy(
+                players = updatedPlayers,
+                currentPlayers = updatedPlayers,
+                updatedAt = LocalDateTime.now()
+            )
         }
 
-        room.updatedAt = LocalDateTime.now()
-        return roomRepository.save(room)
+        return roomRepository.save(newRoom)
     }
 
     /**
@@ -173,12 +188,17 @@ class RoomService(
         val player = room.currentPlayers.find { it.userId == userId }
             ?: throw IllegalArgumentException("Player not in room")
 
+        val updatedPlayers = room.currentPlayers.toMutableList()
         val updatedPlayer = player.copy(isReady = !player.isReady)
-        room.currentPlayers.removeIf { it.userId == userId }
-        room.currentPlayers.add(updatedPlayer)
+        updatedPlayers.removeIf { it.userId == userId }
+        updatedPlayers.add(updatedPlayer)
 
-        room.updatedAt = LocalDateTime.now()
-        return roomRepository.save(room)
+        val updatedRoom = room.copy(
+            currentPlayers = updatedPlayers,
+            players = updatedPlayers,
+            updatedAt = LocalDateTime.now()
+        )
+        return roomRepository.save(updatedRoom)
     }
 
     /**

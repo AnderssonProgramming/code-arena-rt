@@ -45,7 +45,10 @@ data class UserStats(
     val totalPlayTime: Long = 0L, // En segundos
     val bestStreak: Int = 0,
     val currentStreak: Int = 0
-)
+) {
+    val winRate: Double
+        get() = if (gamesPlayed > 0) gamesWon.toDouble() / gamesPlayed else 0.0
+}
 
 data class UserSettings(
     val notifications: Boolean = true,

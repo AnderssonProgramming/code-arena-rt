@@ -79,7 +79,7 @@ data class CreateRoomRequest(
     @field:Max(value = 8, message = "Maximum 8 players allowed")
     val maxPlayers: Int = 4,
     
-    val difficulty: ChallengeDifficulty = ChallengeDifficulty.MEDIUM,
+    val difficulty: Difficulty = Difficulty.MEDIUM,
     val isPrivate: Boolean = false,
     val roundsCount: Int = 5,
     val timePerRound: Int = 60
@@ -114,3 +114,31 @@ enum class GameEventType {
     GAME_ENDED,
     ERROR
 }
+
+// Additional DTOs for Game Controller
+data class SubmitAnswerRequest(
+    val gameId: String,
+    val challengeId: String,
+    val answer: String
+)
+
+data class AnswerResult(
+    val isCorrect: Boolean,
+    val score: Int,
+    val responseTime: Double,
+    val submittedAt: LocalDateTime,
+    val correctAnswer: String? = null
+)
+
+data class ChallengeResponse(
+    val id: String,
+    val title: String,
+    val description: String,
+    val question: String,
+    val options: List<String> = emptyList(),
+    val type: ChallengeType,
+    val difficulty: Difficulty,
+    val timeLimit: Int,
+    val points: Int,
+    val hints: List<String> = emptyList()
+)

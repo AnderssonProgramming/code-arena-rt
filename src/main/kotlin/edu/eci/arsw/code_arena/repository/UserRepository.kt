@@ -22,7 +22,7 @@ interface UserRepository : MongoRepository<User, String> {
     
     fun findByUsernameContainingIgnoreCase(username: String): List<User>
     
-    fun findTopUsersByWinRate(limit: Int): List<User>
-    
+    // Custom query to find top users by win rate - implemented in service layer
+    // since winRate is a computed property
     fun findTop10ByIsActiveTrueOrderByStatsGamesWonDescStatsAverageScoreDesc(): List<User>
 }

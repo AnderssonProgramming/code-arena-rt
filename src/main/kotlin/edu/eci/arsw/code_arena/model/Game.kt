@@ -70,12 +70,15 @@ data class GameChallenge(
 )
 
 data class PlayerAnswer(
+    val userId: String,
     val challengeId: String,
     val answer: String,
     val submittedAt: LocalDateTime,
     val isCorrect: Boolean,
     val timeToAnswer: Long, // En milisegundos
-    val pointsEarned: Int
+    val pointsEarned: Int,
+    val score: Int = pointsEarned, // Alias para pointsEarned
+    val responseTime: Double = timeToAnswer.toDouble() // Alias para timeToAnswer
 )
 
 data class ChallengeResponse(
